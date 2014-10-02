@@ -1,0 +1,34 @@
+{
+  "name": "etcd-leader",
+  "version": "0.0.1",
+  "description": "Etcd leader election for Node.js",
+  "main": "index.js",
+  "scripts": {
+    "test": "mocha"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/samcday/etcd-leader.git"
+  },
+  "keywords": [
+    "etcd",
+    "leader",
+    "election",
+    "master"
+  ],
+  "author": "Sam Day <me@samcday.com.au>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/samcday/etcd-leader/issues"
+  },
+  "homepage": "https://github.com/samcday/etcd-leader",
+  "dependencies": {
+    "debug": "^2.0.0",
+    "node-etcd": "^2.1.4"
+  },
+  "devDependencies": {
+    "chai": "^1.9.2",
+    "mocha": "^1.21.4",
+    "sinon": "^1.10.3"
+  }
+}
