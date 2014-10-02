@@ -9,6 +9,7 @@ Leader election module built on top of [node-etcd](https://github.com/stianeikel
 
 ## Usage
 
+```
   var Etcd = require("node-etcd");
   var etcdLeader = require("etcd-leader");
 
@@ -30,6 +31,7 @@ Leader election module built on top of [node-etcd](https://github.com/stianeikel
   election.on("newMaster", function(node) {
     console.log("Master is now " + node);
   });
+```
 
 ## Algorithm
 
