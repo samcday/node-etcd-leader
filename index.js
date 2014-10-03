@@ -11,6 +11,18 @@ var debug   = require("debug")("etcd-leader");
 function EtcdLeader(etcd, key, name, ttl) {
   events.EventEmitter.call(this);
 
+  if (!etcd) {
+    throw new Error("etcd is required");
+  }
+
+  if (!key) {
+    throw new Error("node key not specified");
+  }
+
+  if (!name) {
+    throw new Error("node name not specified");
+  }
+
   this._etcd = etcd;
   this._key = String(key);
   this._name = String(name);
@@ -18,43 +30,75 @@ function EtcdLeader(etcd, key, name, ttl) {
 
   this._isLeader = false;
   this._currentLeader = undefined;
-
-  if (!this._etcd) {
-    throw new Error("etcd is required");
-  }
-
-  if (!this._key) {
-    throw new Error("node key not specified");
-  }
-
-  if (!this._name) {
-    throw new Error("Node name not specified");
-  }
 }
 
 util.inherits(EtcdLeader, events.EventEmitter);
 
 EtcdLeader.prototype.start = function() {
-  var self = this;
+  if (this._started) {
+    return;
+  }
 
-  this._etcd.create(this._key, this._name, { ttl: this._ttl }, function(err, result) {
-    if (err) {
-      return self.emit("error", err);
+  var self = this;
+  this._started = true;
+
+  process.nextTick(function() {
+    if (!self._started) {
+      return;
     }
 
-    var key = result.node.key,
-        modifiedIndex = result.node.modifiedIndex;
+    self._createReq = self._etcd.create(self._key, self._name, { ttl: self._ttl }, function(err, result) {
+      self._createReq = null;
 
-    debug("Created membership key: " + key);
+      if (err) {
+        return self.emit("error", err);
+      }
 
-    self._checkLeader(key);
-    self._refresh(key, modifiedIndex);
+      var key = result.node.key,
+          modifiedIndex = result.node.modifiedIndex;
+
+      debug("Created membership key: " + key);
+
+      self._checkLeader(key);
+      self._refresh(key, modifiedIndex);
+    });
   });
 
   return this;
 };
 
 EtcdLeader.prototype.stop = function() {
+  if (!this._started) {
+    return;
+  }
+
+  if (this._createReq) {
+    this._createReq.abort();
+    this._createReq = null;
+  }
+
+  if (this._leaderCheck) {
+    this._leaderCheck.abort();
+    this._leaderCheck = null;
+  }
+
+  if (this._precedingWatch) {
+    this._precedingWatch.abort();
+    this._precedingWatch = null;
+  }
+
+  if (this._refreshTimer) {
+    clearTimeout(this._refreshTimer);
+    this._refreshTimer = null;
+  }
+
+  if (this._refreshReq) {
+    this._refreshReq.abort();
+    this._refreshReq = null;
+  }
+
+  this._started = false;
+
   return this;
 };
 
@@ -62,7 +106,8 @@ EtcdLeader.prototype.stop = function() {
 // Otherwise, start watching key before ours for changes.
 EtcdLeader.prototype._checkLeader = function(ourKey) {
   var self = this;
-  this._etcd.get(this._key, {sorted: true}, function(err, result) {
+  this._leaderCheck = this._etcd.get(this._key, {sorted: true}, function(err, result) {
+    self._leaderCheck = null;
     if (err) {
       return self.emit("error", err);
     }
@@ -102,7 +147,9 @@ EtcdLeader.prototype._checkLeader = function(ourKey) {
       return self.emit("error", new Error("Error determing current leader"));
     }
 
-    self._etcd.get(precedingNode.key, { wait: true, waitIndex: precedingNode.modifiedIndex + 1 }, function(err, node) {
+    self._precedingWatch = self._etcd.get(precedingNode.key, { wait: true, waitIndex: precedingNode.modifiedIndex + 1 }, function(err, node) {
+      self._precedingWatch = null;
+
       if (err) {
         return self.emit("error", err);
       }
@@ -115,9 +162,11 @@ EtcdLeader.prototype._checkLeader = function(ourKey) {
 EtcdLeader.prototype._refresh = function(key, modifiedIndex) {
   var self = this;
 
-  this._refreshTimer = setTimeout(function() {
+  self._refreshTimer = setTimeout(function() {
+    self._refreshTimer = null;
+
     debug("Refreshing membership key " + key + " from index " + modifiedIndex);
-    self._etcd.set(key, self._name, { ttl: self._ttl, prevIndex: modifiedIndex }, function(err, result) {
+    self._refreshReq = self._etcd.set(key, self._name, { ttl: self._ttl, prevIndex: modifiedIndex }, function(err, result) {
       if (err) {
         return self.emit("error", err);
       }
