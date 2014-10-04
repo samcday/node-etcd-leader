@@ -27,10 +27,18 @@ describe("etcd-leader", function() {
   });
 
   describe("on start()", function() {
-    it("should return self", function() {var mockEtcd = {};
+    it("should return self", function() {
+      var mockEtcd = {};
       mockEtcd.create = sinon.stub();
       var leader = etcdLeader(mockEtcd, "/foo", "bar", "123");
       expect(leader.start()).to.eql(leader);
+    });
+
+    it("should indicate isRunning()", function() {
+      var mockEtcd = {};
+      mockEtcd.create = sinon.stub();
+      var leader = etcdLeader(mockEtcd, "/foo", "bar", "123").start();
+      expect(leader.isRunning()).to.be.true;
     });
 
     it("should ignore multiple calls", function(done) {
@@ -79,6 +87,7 @@ describe("etcd-leader", function() {
 
       leader.on("error", function(err) {
         expect(err.message).to.match(/An etcd error/);
+        expect(leader.isRunning()).to.be.false;
         done();
       });
     });
@@ -123,6 +132,7 @@ describe("etcd-leader", function() {
       var leader = etcdLeader(mockEtcd, "/foo", "bar", "123").start();
       leader.on("error", function(err) {
         expect(err.message).to.match(/An etcd error/);
+        expect(leader.isRunning()).to.be.false;
         done();
       })
     });
@@ -175,8 +185,35 @@ describe("etcd-leader", function() {
       });
     });
 
-    xit("should handle errors when refreshing membership key", function() {
+    it("should handle errors when refreshing membership key", function(done) {
+      var clock = sinon.useFakeTimers();
+      after(function() {
+        clock.restore();
+      });
 
+      var mockEtcd = {};
+      mockEtcd.create = sinon.stub();
+      mockEtcd.create.callsArgWith(3, undefined, {
+        node: {
+          key: "/foo/123",
+          modifiedIndex: 123,
+        }
+      });
+
+      mockEtcd.get = sinon.stub();
+      mockEtcd.set = sinon.stub();
+      mockEtcd.set.callsArgWith(3, new Error("etcd error!"));
+
+      var leader = etcdLeader(mockEtcd, "/foo", "bar", 10).start();
+      leader.on("error", function(err) {
+        expect(err.message).to.match(/etcd error/);
+        expect(leader.isRunning()).to.be.false;
+        done();
+      });
+
+      process.nextTick(function() {
+        clock.tick(5000);
+      });
     });
 
     xit("should handle refresh timeouts", function(done) {

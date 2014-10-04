@@ -51,7 +51,7 @@ EtcdLeader.prototype.start = function() {
       self._createReq = null;
 
       if (err) {
-        return self.emit("error", err);
+        return self.handleError(err);
       }
 
       var key = result.node.key,
@@ -109,7 +109,7 @@ EtcdLeader.prototype._checkLeader = function(ourKey) {
   this._leaderCheck = this._etcd.get(this._key, {sorted: true}, function(err, result) {
     self._leaderCheck = null;
     if (err) {
-      return self.emit("error", err);
+      return self.handleError(err);
     }
 
     var nodes = result.node.nodes;
@@ -144,14 +144,14 @@ EtcdLeader.prototype._checkLeader = function(ourKey) {
     }
  
     if (precedingNode === null) {
-      return self.emit("error", new Error("Error determing current leader"));
+      return self.handleError(err);
     }
 
     self._precedingWatch = self._etcd.get(precedingNode.key, { wait: true, waitIndex: precedingNode.modifiedIndex + 1 }, function(err, node) {
       self._precedingWatch = null;
 
       if (err) {
-        return self.emit("error", err);
+        return self.handleError(err);
       }
 
       self._checkLeader(ourKey);
@@ -168,7 +168,7 @@ EtcdLeader.prototype._refresh = function(key, modifiedIndex) {
     debug("Refreshing membership key " + key + " from index " + modifiedIndex);
     self._refreshReq = self._etcd.set(key, self._name, { ttl: self._ttl, prevIndex: modifiedIndex }, function(err, result) {
       if (err) {
-        return self.emit("error", err);
+        return self.handleError(err);
       }
 
       // TODO: check result.
@@ -177,6 +177,15 @@ EtcdLeader.prototype._refresh = function(key, modifiedIndex) {
     });
   }, this._ttl * 500);
 };
+
+EtcdLeader.prototype.handleError = function(err) {
+  this.stop();
+  this.emit("error", err);
+};
+
+EtcdLeader.prototype.isRunning = function() {
+  return this._started;
+}
 
 module.exports = function(etcd, key, name, ttl) {
   return new EtcdLeader(etcd, key, name, ttl);
