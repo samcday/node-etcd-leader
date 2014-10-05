@@ -1,7 +1,7 @@
 etcd-leader
 ===========
 
-[![Build Static][badge-travis-img]][badge-travis-url] [![Dependency Information][badge-david-img]][badge-david-url] [![Code Coverage][badge-cov-img][badge-cov-url]] [![Code Quality][badge-climate-img][badge-climate-url]]
+[![Build Static][badge-travis-img]][badge-travis-url] [![Dependency Information][badge-david-img]][badge-david-url] [![Code Coverage][badge-cov-img]][badge-cov-url] [![Code Quality][badge-climate-img]][badge-climate-url]
 
 **Under development, not yet suitable for production use.**
 
@@ -59,7 +59,7 @@ How do we do this specifically in etcd? Let's assume we have initialised etcd-le
 [badge-david-url]: https://david-dm.org/samcday/node-etcd-leader
 [badge-travis-img]: http://img.shields.io/travis/samcday/node-etcd-leader.svg?style=flat-square
 [badge-travis-url]: https://travis-ci.org/samcday/node-etcd-leader
-[badge-climate-img]: http://img.shields.io/codeclimate/coverage/github/samcday/node-etcd-leader.svg?style=flat-square
+[badge-climate-img]: http://img.shields.io/codeclimate/github/samcday/node-etcd-leader.svg?style=flat-square
 [badge-climate-url]: https://codeclimate.com/github/samcday/node-etcd-leader
 [badge-cov-img]: http://img.shields.io/codeclimate/coverage/github/samcday/node-etcd-leader.svg?style=flat-square
 [badge-cov-url]: https://codeclimate.com/github/samcday/node-etcd-leader
