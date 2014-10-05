@@ -17,6 +17,12 @@ function setupFakeTimers() {
 }
 
 describe("etcd-leader", function() {
+  it("should fail if no etcd client provided", function() {
+    expect(function() {
+      etcdLeader();
+    }).to.throw(/etcd is required/);
+  });
+
   it("should fail on invalid leader key", function() {
     expect(function() {
       etcdLeader({});
@@ -27,6 +33,11 @@ describe("etcd-leader", function() {
     expect(function() {
       etcdLeader({}, "/foo");
     }).to.throw(/node name not specified/);
+  });
+
+  it("should default TTL", function() {
+    var leader = etcdLeader({}, "/foo", "bar");
+    expect(leader._ttl).to.equal(10);
   });
 
   it("should coerce TTL", function() {
@@ -224,6 +235,11 @@ describe("etcd-leader", function() {
   });
 
   describe("on stop()", function() {
+    it("should no-op on unstarted client", function() {
+      var leader = etcdLeader({}, "/foo", "bar", "123");
+      leader.stop();
+    });
+
     it("should abort initial create request", function(done) {
       var mockEtcd = {};
       mockEtcd.create = sinon.stub();
