@@ -8,6 +8,14 @@ var expect = chai.expect;
 
 var etcdLeader = require("../index.js");
 
+function setupFakeTimers() {
+  var clock = sinon.useFakeTimers();
+  after(function() {
+    clock.restore();
+  });
+  return clock;
+}
+
 describe("etcd-leader", function() {
   it("should fail on invalid leader key", function() {
     expect(function() {
@@ -138,10 +146,7 @@ describe("etcd-leader", function() {
     });
 
     it("should begin refreshing membership key regularly", function(done) {
-      var clock = sinon.useFakeTimers();
-      after(function() {
-        clock.restore();
-      });
+      var clock = setupFakeTimers();
 
       var mockEtcd = {};
       mockEtcd.create = sinon.stub();
@@ -186,10 +191,7 @@ describe("etcd-leader", function() {
     });
 
     it("should handle errors when refreshing membership key", function(done) {
-      var clock = sinon.useFakeTimers();
-      after(function() {
-        clock.restore();
-      });
+      var clock = setupFakeTimers();
 
       var mockEtcd = {};
       mockEtcd.create = sinon.stub();
@@ -236,6 +238,14 @@ describe("etcd-leader", function() {
         sinon.assert.calledOnce(mockReq.abort);
         done();
       });
+    });
+
+    it("should indicate isRunning()", function() {
+      var mockEtcd = {};
+      mockEtcd.create = sinon.stub();
+      var leader = etcdLeader(mockEtcd, "/foo", "bar", "123").start();
+      leader.stop();
+      expect(leader.isRunning()).to.be.false;
     });
   });
 });
