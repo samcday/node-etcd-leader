@@ -1,6 +1,13 @@
 language: node_js
 node_js:
 - '0.10'
+- '0.11'
+
+matrix:
+  include:
+    - node_js: '0.10'
+    - node_js: '0.11'
+      env: NO_COVERAGE=1
 
 addons:
   code_climate:

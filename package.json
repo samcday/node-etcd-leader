@@ -4,7 +4,7 @@
   "description": "Etcd leader election for Node.js",
   "main": "index.js",
   "scripts": {
-    "test": "istanbul cover _mocha"
+    "test": "[ -n \"$NO_COVERAGE\" ] && mocha || istanbul cover _mocha"
   },
   "repository": {
     "type": "git",
