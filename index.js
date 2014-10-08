@@ -185,7 +185,7 @@ EtcdLeader.prototype.handleError = function(err) {
 
 EtcdLeader.prototype.isRunning = function() {
   return this._started;
-}
+};
 
 module.exports = function(etcd, key, name, ttl) {
   return new EtcdLeader(etcd, key, name, ttl);

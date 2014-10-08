@@ -1,7 +1,10 @@
 etcd-leader
 ===========
 
-[![Build Static][badge-travis-img]][badge-travis-url] [![Dependency Information][badge-david-img]][badge-david-url] [![Code Coverage][badge-cov-img]][badge-cov-url] [![Code Quality][badge-climate-img]][badge-climate-url]
+[![Build Status][badge-travis-img]][badge-travis-url]
+[![Dependency Information][badge-david-img]][badge-david-url]
+[![Code Coverage][badge-cov-img]][badge-cov-url]
+[![Code Quality][badge-climate-img]][badge-climate-url]
 
 **Under development, not yet suitable for production use.**
 
