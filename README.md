@@ -8,11 +8,11 @@ etcd-leader
 
 **Under development, not yet suitable for production use.**
 
-Leader election module built on top of [node-etcd](https://github.com/stianeikeland/node-etcd).
-
-`npm install etcd-leader`
+Leader election module built on a robust election algorithm, and extremely thoroughly tested.
 
 ## Usage
+
+Expects a configured [node-etcd](https://github.com/stianeikeland/node-etcd) client to be provided. Note that this package does not depend on node-etcd. It is compatible with the `2.x` version of node-etcd.
 
 ```
   var Etcd = require("node-etcd");

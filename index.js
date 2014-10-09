@@ -15,11 +15,11 @@ function EtcdLeader(etcd, key, name, ttl) {
     throw new Error("etcd is required");
   }
 
-  if (!key) {
+  if (!key || !String(key).trim()) {
     throw new Error("node key not specified");
   }
 
-  if (!name) {
+  if (!name || !String(name).trim()) {
     throw new Error("node name not specified");
   }
 
@@ -122,6 +122,7 @@ EtcdLeader.prototype._checkLeader = function(ourKey) {
   var self = this;
   this._leaderCheck = this._etcd.get(this._key, {sorted: true}, function(err, result) {
     self._leaderCheck = null;
+
     if (err) {
       return self.handleError(err);
     }
@@ -129,18 +130,38 @@ EtcdLeader.prototype._checkLeader = function(ourKey) {
     var nodes = result.node.nodes;
 
     if(nodes[0].key === ourKey) {
-      // We're leader. Nothing needed here but emitting an event.
+      // We're leader.
+      // Watch our own key, in case some external force causes us to lose it.
+      // This could be manual cluster maintenance / some weird race condition / gremlins.
+      // Because the act of refreshing our memberhip key will cause this watch to fire,
+      // we only check to see if our node has been somehow deleted.
+      var watchOurself = function(currentNode) {
+        self._precedingWatch = self._etcd.get(ourKey, { wait: true, waitIndex: currentNode.modifiedIndex + 1 }, function(err, result) {
+          self._precedingWatch = null;
+          if (err) {
+            return self.handleError(err);
+          }
+
+          // Our value went away. Uh-oh, spaghetti-ohs!
+          if (result.node.value === undefined) {
+            // We treat this the same way as a timeout in refreshing membership key.
+            // That is, we basically clean up all state and start afresh.
+            self.stop();
+            self.start();
+          } else {
+            watchOurself(result.node);
+          }
+        });
+      };
+
+      process.nextTick(watchOurself.bind(null, nodes[0]));
+
       if (!self._isLeader) {
         self._isLeader = true;
         self.emit("elected");
       }
 
       return;
-    }
-
-    if (self._isLeader === true) {
-      self._isLeader = false;
-      self.emit("unelected");
     }
 
     if (nodes[0].value !== self._currentLeader) {
@@ -161,7 +182,7 @@ EtcdLeader.prototype._checkLeader = function(ourKey) {
       return self.handleError(err);
     }
 
-    self._precedingWatch = self._etcd.get(precedingNode.key, { wait: true, waitIndex: precedingNode.modifiedIndex + 1 }, function(err, node) {
+    self._precedingWatch = self._etcd.get(precedingNode.key, { wait: true, waitIndex: precedingNode.modifiedIndex + 1 }, function(err) {
       self._precedingWatch = null;
 
       if (err) {
@@ -195,6 +216,8 @@ EtcdLeader.prototype._refresh = function(key, modifiedIndex) {
   }, this._ttl * 500);
 
   self._refreshAbortTimer = setTimeout(function() {
+    self._refreshAbortTimer = null;
+
     // If this timer is hit, we're somehow struggling to talk to the
     // etcd cluster, or the cluster itself is unhealthy. Either way,
     // we should assume we're no longer master, and start from scratch.

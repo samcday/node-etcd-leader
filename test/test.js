@@ -8,15 +8,34 @@ var expect = chai.expect;
 
 var etcdLeader = require("../index.js");
 
-function setupFakeTimers() {
-  var clock = sinon.useFakeTimers();
-  after(function() {
-    clock.restore();
+function mockEtcdCreate() {
+  var stub = sinon.stub();
+  stub.onCall(0).callsArgWith(3, undefined, {
+    node: {
+      key: "/foo/123",
+      modifiedIndex: 123,
+    }
   });
-  return clock;
+
+  return stub;
 }
 
 describe("etcd-leader", function() {
+  beforeEach(function() {
+    var self = this;
+    self.setupFakeTimers = function() {
+      self._fakeTimers = sinon.useFakeTimers();
+      return self._fakeTimers;
+    };
+  });
+
+  afterEach(function() {
+    if (this._fakeTimers) {
+      this._fakeTimers.restore(); 
+      this._fakeTimers = null;
+    }
+  });
+
   it("should fail if no etcd client provided", function() {
     expect(function() {
       etcdLeader();
@@ -29,9 +48,21 @@ describe("etcd-leader", function() {
     }).to.throw(/node key not specified/);
   });
 
+  it("should fail on empty leader key", function() {
+    expect(function() {
+      etcdLeader({}, " ");
+    }).to.throw(/node key not specified/);
+  });
+
   it("should fail on invalid node name", function() {
     expect(function() {
       etcdLeader({}, "/foo");
+    }).to.throw(/node name not specified/);
+  });
+
+  it("should fail on empty node name", function() {
+    expect(function() {
+      etcdLeader({}, "/foo", " ");
     }).to.throw(/node name not specified/);
   });
 
@@ -97,7 +128,9 @@ describe("etcd-leader", function() {
         done();
       });
     });
+  });
 
+  describe("when running", function() {
     it("should handle failures in creating membership key", function(done) {
       var mockEtcd = {};
       mockEtcd.create = sinon.stub();
@@ -113,13 +146,7 @@ describe("etcd-leader", function() {
 
     it("should check for leader after creating membership key", function(done) {
       var mockEtcd = {};
-      mockEtcd.create = sinon.stub();
-      mockEtcd.create.callsArgWith(3, undefined, {
-        node: {
-          key: "/foo/123",
-          modifiedIndex: 123,
-        }
-      });
+      mockEtcd.create = mockEtcdCreate();
 
       mockEtcd.get = sinon.stub();
 
@@ -137,13 +164,7 @@ describe("etcd-leader", function() {
 
     it("should handle failure when checking for leader", function(done) {
       var mockEtcd = {};
-      mockEtcd.create = sinon.stub();
-      mockEtcd.create.callsArgWith(3, undefined, {
-        node: {
-          key: "/foo/123",
-          modifiedIndex: 123,
-        }
-      });
+      mockEtcd.create = mockEtcdCreate();
 
       mockEtcd.get = sinon.stub();
       mockEtcd.get.callsArgWith(2, new Error("An etcd error"));
@@ -157,16 +178,10 @@ describe("etcd-leader", function() {
     });
 
     it("should begin refreshing membership key regularly", function(done) {
-      var clock = setupFakeTimers();
+      var clock = this.setupFakeTimers();
 
       var mockEtcd = {};
-      mockEtcd.create = sinon.stub();
-      mockEtcd.create.callsArgWith(3, undefined, {
-        node: {
-          key: "/foo/123",
-          modifiedIndex: 123,
-        }
-      });
+      mockEtcd.create = mockEtcdCreate();
 
       // This one is for the leader check, we just never answer it.
       mockEtcd.get = sinon.stub();
@@ -202,16 +217,10 @@ describe("etcd-leader", function() {
     });
 
     it("should handle errors when refreshing membership key", function(done) {
-      var clock = setupFakeTimers();
+      var clock = this.setupFakeTimers();
 
       var mockEtcd = {};
-      mockEtcd.create = sinon.stub();
-      mockEtcd.create.callsArgWith(3, undefined, {
-        node: {
-          key: "/foo/123",
-          modifiedIndex: 123,
-        }
-      });
+      mockEtcd.create = mockEtcdCreate();
 
       mockEtcd.get = sinon.stub();
       mockEtcd.set = sinon.stub();
@@ -229,9 +238,64 @@ describe("etcd-leader", function() {
       });
     });
 
-    xit("should handle refresh timeouts", function(done) {
+    it("should handle being elected", function(done) {
+      var mockEtcd = {};
+      mockEtcd.create = mockEtcdCreate();
+      mockEtcd.get = sinon.stub();
 
+      // First call to etcd.get is the leader check.
+      mockEtcd.get.onCall(0).callsArgWith(2, undefined, {
+        node: {
+          nodes: [
+            {
+              key: "/foo/123",
+              modifiedIndex: 123,
+            }
+          ]
+        }
+      });
+
+      var leader = etcdLeader(mockEtcd, "/foo", "bar", 10).start();
+      leader.on("elected", function() {
+        // Success.
+        done();
+      });
     });
+
+    it("should handle losing election", function(done) {
+      var mockEtcd = {};
+      mockEtcd.create = mockEtcdCreate();
+      mockEtcd.get = sinon.stub();
+
+      // First call to etcd.get is the leader check.
+      mockEtcd.get.onCall(0).callsArgWith(2, undefined, {
+        node: {
+          nodes: [
+            {
+              key: "/foo/123",
+              modifiedIndex: 123,
+            }
+          ]
+        }
+      });
+
+      // Second call to etcd.get is the watch on our key.
+      mockEtcd.get.onCall(1).callsArgWith(2, undefined, {
+        node: {
+          value: undefined,
+        }
+      });
+
+      var leader = etcdLeader(mockEtcd, "/foo", "bar", 10).start();
+      leader.on("unelected", function() {
+        // Success.
+        done();
+      });
+    });
+
+    xit("should emit initial leader event");
+    xit("should emit change of leader event");
+    xit("should handle refresh timeouts");
   });
 
   describe("on stop()", function() {
