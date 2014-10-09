@@ -153,7 +153,7 @@ describe("etcd-leader", function() {
         expect(err.message).to.match(/An etcd error/);
         expect(leader.isRunning()).to.be.false;
         done();
-      })
+      });
     });
 
     it("should begin refreshing membership key regularly", function(done) {
@@ -262,6 +262,10 @@ describe("etcd-leader", function() {
       var leader = etcdLeader(mockEtcd, "/foo", "bar", "123").start();
       leader.stop();
       expect(leader.isRunning()).to.be.false;
+    });
+
+    xit("should emit unelected event", function() {
+      
     });
   });
 });

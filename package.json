@@ -32,6 +32,11 @@
     "sinon": "^1.10.3"
   },
   "jshintConfig": {
-    "node": true
+    "node": true,
+    "mocha": true,
+    "expr": true,
+    "globals": {
+      "xit": false
+    }
   }
 }

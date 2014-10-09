@@ -39,30 +39,9 @@ EtcdLeader.prototype.start = function() {
     return;
   }
 
-  var self = this;
   this._started = true;
 
-  process.nextTick(function() {
-    if (!self._started) {
-      return;
-    }
-
-    self._createReq = self._etcd.create(self._key, self._name, { ttl: self._ttl }, function(err, result) {
-      self._createReq = null;
-
-      if (err) {
-        return self.handleError(err);
-      }
-
-      var key = result.node.key,
-          modifiedIndex = result.node.modifiedIndex;
-
-      debug("Created membership key: " + key);
-
-      self._checkLeader(key);
-      self._refresh(key, modifiedIndex);
-    });
-  });
+  process.nextTick(this._setup.bind(this));
 
   return this;
 };
@@ -92,14 +71,49 @@ EtcdLeader.prototype.stop = function() {
     this._refreshTimer = null;
   }
 
+  if (this._refreshAbortTimer) {
+    clearTimeout(this._refreshAbortTimer);
+    this._refreshAbortTimer = null;
+  }
+
   if (this._refreshReq) {
     this._refreshReq.abort();
     this._refreshReq = null;
   }
 
+  if (this._isLeader) {
+    this.emit("unelected");
+  }
+
+  this._isLeader = false;
+  this._currentLeader = undefined;
   this._started = false;
 
   return this;
+};
+
+EtcdLeader.prototype._setup = function() {
+  var self = this;
+
+  if (!self._started) {
+    return;
+  }
+
+  self._createReq = self._etcd.create(self._key, self._name, { ttl: self._ttl }, function(err, result) {
+    self._createReq = null;
+
+    if (err) {
+      return self.handleError(err);
+    }
+
+    var key = result.node.key,
+        modifiedIndex = result.node.modifiedIndex;
+
+    debug("Created membership key: " + key);
+
+    self._checkLeader(key);
+    self._refresh(key, modifiedIndex);
+  });
 };
 
 // Check the election key, fire event if we're leader.
@@ -167,6 +181,9 @@ EtcdLeader.prototype._refresh = function(key, modifiedIndex) {
 
     debug("Refreshing membership key " + key + " from index " + modifiedIndex);
     self._refreshReq = self._etcd.set(key, self._name, { ttl: self._ttl, prevIndex: modifiedIndex }, function(err, result) {
+      clearTimeout(self._refreshAbortTimer);
+      self._refreshAbortTimer = null;
+
       if (err) {
         return self.handleError(err);
       }
@@ -176,6 +193,14 @@ EtcdLeader.prototype._refresh = function(key, modifiedIndex) {
       self._refresh(key, result.node.modifiedIndex);
     });
   }, this._ttl * 500);
+
+  self._refreshAbortTimer = setTimeout(function() {
+    // If this timer is hit, we're somehow struggling to talk to the
+    // etcd cluster, or the cluster itself is unhealthy. Either way,
+    // we should assume we're no longer master, and start from scratch.
+    self.stop();
+    self.start();
+  }, this._ttl * 1000);
 };
 
 EtcdLeader.prototype.handleError = function(err) {
