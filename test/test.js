@@ -2,8 +2,8 @@
 
 // These are UNIT tests for the module, testing with a mocked node-etcd library.
 
-var chai = require("chai");
 var sinon = require("sinon");
+var chai = require("chai");
 var expect = chai.expect;
 
 var etcdLeader = require("../index.js");
@@ -118,6 +118,7 @@ describe("etcd-leader", function() {
     it("should not start if immediately stopped", function(done) {
       var mockEtcd = {};
       mockEtcd.create = sinon.stub();
+      mockEtcd.del = sinon.stub();
 
       var leader = etcdLeader(mockEtcd, "/foo", "bar", "123").start();
       sinon.assert.notCalled(mockEtcd.create);
@@ -146,6 +147,7 @@ describe("etcd-leader", function() {
 
     it("should check for leader after creating membership key", function(done) {
       var mockEtcd = {};
+      mockEtcd.del = sinon.stub();
       mockEtcd.create = mockEtcdCreate();
 
       mockEtcd.get = sinon.stub();
@@ -164,6 +166,7 @@ describe("etcd-leader", function() {
 
     it("should handle failure when checking for leader", function(done) {
       var mockEtcd = {};
+      mockEtcd.del = sinon.stub();
       mockEtcd.create = mockEtcdCreate();
 
       mockEtcd.get = sinon.stub();
@@ -220,6 +223,7 @@ describe("etcd-leader", function() {
       var clock = this.setupFakeTimers();
 
       var mockEtcd = {};
+      mockEtcd.del = sinon.stub();
       mockEtcd.create = mockEtcdCreate();
 
       mockEtcd.get = sinon.stub();
@@ -265,6 +269,7 @@ describe("etcd-leader", function() {
     it("should handle losing election", function(done) {
       var mockEtcd = {};
       mockEtcd.create = mockEtcdCreate();
+      mockEtcd.del = sinon.stub();
       mockEtcd.get = sinon.stub();
 
       // First call to etcd.get is the leader check.
@@ -306,6 +311,7 @@ describe("etcd-leader", function() {
 
     it("should abort initial create request", function(done) {
       var mockEtcd = {};
+      mockEtcd.del = sinon.stub();
       mockEtcd.create = sinon.stub();
 
       var mockReq = { abort: sinon.stub() };
@@ -322,6 +328,7 @@ describe("etcd-leader", function() {
 
     it("should indicate isRunning()", function() {
       var mockEtcd = {};
+      mockEtcd.del = sinon.stub();
       mockEtcd.create = sinon.stub();
       var leader = etcdLeader(mockEtcd, "/foo", "bar", "123").start();
       leader.stop();

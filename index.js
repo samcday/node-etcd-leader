@@ -5,7 +5,6 @@ var util    = require("util");
 var debug   = require("debug")("etcd-leader");
 
 // TODO:
-// * Handle timeouts in refreshing membership key
 // * tests. lots of them. test every error case. 100% coverage. kthx.
 
 function EtcdLeader(etcd, key, name, ttl) {
@@ -51,6 +50,9 @@ EtcdLeader.prototype.stop = function() {
     return;
   }
 
+  debug("Stopping " + this._name);
+  this._started = false;
+
   if (this._createReq) {
     this._createReq.abort();
     this._createReq = null;
@@ -85,9 +87,21 @@ EtcdLeader.prototype.stop = function() {
     this.emit("unelected");
   }
 
+  if (this._membershipKey) {
+    var key = this._membershipKey;
+
+    // This is a bit of a fire-and-forget. It's best-effort anyway.
+    // We do this so the leader election is immediately freed up.
+    this._etcd.del(key, function(err) {
+      if (err) {
+        debug("WARN - couldn't delete membership key " + key, err);
+      }
+    });
+  }
+
+  this._membershipKey = null;
   this._isLeader = false;
   this._currentLeader = undefined;
-  this._started = false;
 
   return this;
 };
@@ -110,6 +124,7 @@ EtcdLeader.prototype._setup = function() {
         modifiedIndex = result.node.modifiedIndex;
 
     debug("Created membership key: " + key);
+    self._membershipKey = key;
 
     self._checkLeader(key);
     self._refresh(key, modifiedIndex);
@@ -138,6 +153,11 @@ EtcdLeader.prototype._checkLeader = function(ourKey) {
       var watchOurself = function(currentNode) {
         self._precedingWatch = self._etcd.get(ourKey, { wait: true, waitIndex: currentNode.modifiedIndex + 1 }, function(err, result) {
           self._precedingWatch = null;
+
+          if (!self._started) {
+            return;
+          }
+
           if (err) {
             return self.handleError(err);
           }
@@ -218,6 +238,8 @@ EtcdLeader.prototype._refresh = function(key, modifiedIndex) {
   self._refreshAbortTimer = setTimeout(function() {
     self._refreshAbortTimer = null;
 
+    debug("ABORTING " + key + " due to timeout in refreshing key.");
+
     // If this timer is hit, we're somehow struggling to talk to the
     // etcd cluster, or the cluster itself is unhealthy. Either way,
     // we should assume we're no longer master, and start from scratch.
@@ -233,6 +255,10 @@ EtcdLeader.prototype.handleError = function(err) {
 
 EtcdLeader.prototype.isRunning = function() {
   return this._started;
+};
+
+EtcdLeader.prototype.isLeader = function() {
+  return this._isLeader;
 };
 
 module.exports = function(etcd, key, name, ttl) {
