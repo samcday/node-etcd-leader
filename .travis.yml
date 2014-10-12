@@ -11,6 +11,13 @@ addons:
     repo_token:
       secure: "dwLTXMa8ozFywdZGbFVzS3fG0X5TLO0lp0VCRSivA1zM5dV/lo5cusrFgPhpFeQvRj0/eXT5XelkZxFr/h91WYodvShmpxGDmOVx4kDt+Zhw9KA4JdogYB2JJ97AjkPF2MOkKuGNdu+qT7Lk/byvJNoSg0CqAbo0U5yEnUlolME="
 
+before_install:
+  - curl -L https://github.com/coreos/etcd/releases/download/v0.4.6/etcd-v0.4.6-linux-amd64.tar.gz -o etcd-v0.4.6-linux-amd64.tar.gz
+  - tar xzvf etcd-v0.4.6-linux-amd64.tar.gz
+  - cd etcd-v0.4.6-linux-amd64
+  - ./etcd &
+  - cd $TRAVIS_BUILD_DIR
+
 after_script:
   - npm install -g codeclimate-test-reporter
   - cat coverage/lcov.info | codeclimate
