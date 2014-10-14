@@ -298,9 +298,35 @@ describe("etcd-leader", function() {
       });
     });
 
-    xit("should emit initial leader event");
-    xit("should emit change of leader event");
-    xit("should handle refresh timeouts");
+    it("should handle refresh timeouts", function(done) {
+      var clock = this.setupFakeTimers();
+
+      var mockEtcd = {};
+      mockEtcd.create = mockEtcdCreate();
+      mockEtcd.del = sinon.stub();
+      mockEtcd.get = sinon.stub();
+      mockEtcd.set = sinon.stub();
+
+      mockEtcd.get.onCall(0).callsArgWith(2, undefined, {
+        node: {
+          nodes: [
+            {
+              key: "/foo/123",
+              modifiedIndex: 123,
+            }
+          ]
+        }
+      });
+
+      var leader = etcdLeader(mockEtcd, "/foo", "bar", 10).start();
+
+      process.nextTick(function() {
+        clock.tick(5000);
+        sinon.assert.calledWith(mockEtcd.set, "/foo/123", "bar", { ttl: 10, prevIndex: 123 });
+        leader.on("unelected", done);
+        clock.tick(5001);
+      });
+    });
   });
 
   describe("on stop()", function() {

@@ -199,7 +199,7 @@ EtcdLeader.prototype._checkLeader = function(ourKey) {
     }
  
     if (precedingNode === null) {
-      return self.handleError(err);
+      return self.handleError(new Error("Couldn't find own membership in list"));
     }
 
     self._precedingWatch = self._etcd.get(precedingNode.key, { wait: true, waitIndex: precedingNode.modifiedIndex + 1 }, function(err) {
@@ -259,6 +259,10 @@ EtcdLeader.prototype.isRunning = function() {
 
 EtcdLeader.prototype.isLeader = function() {
   return this._isLeader;
+};
+
+EtcdLeader.prototype.currentLeader = function() {
+  return this._currentLeader;
 };
 
 module.exports = function(etcd, key, name, ttl) {

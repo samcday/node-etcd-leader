@@ -54,7 +54,7 @@ describe("etcd-leader against a real etcd server", function() {
         expect(leader2.isLeader()).to.be.false;
         expect(leader3.isLeader()).to.be.false;
         done();
-      }, 3000);
+      }, 1500);
     });
 
     leader2.on("elected", function() {
@@ -71,11 +71,9 @@ describe("etcd-leader against a real etcd server", function() {
     var leader2 = etcdLeader(this.etcd, "/teststop", "node2", 100);
 
     leader1.on("elected", function() {
-      console.log("leader1 elected", leader1.isRunning());
       leader2.start();
 
       leader2.on("elected", function() {
-        console.log("leader2 elected");
         leader2.stop();
 
         setTimeout(done, 1000);
@@ -95,6 +93,48 @@ describe("etcd-leader against a real etcd server", function() {
       electedCalled = true;
       leader1.on("unelected", done);
       leader1.stop();
+    });
+  });
+
+  it("emits leader events on non leaders", function(done) {
+    var leader1 = etcdLeader(this.etcd, "/testleader", "node1", 1).start();
+    var leader2 = etcdLeader(this.etcd, "/testleader", "node2", 1);
+
+    leader1.on("elected", function() {
+      leader2.start();
+
+      leader2.on("leader", function(node) {
+        expect(node).to.eql("node1");
+        expect(node).to.eql(leader2.currentLeader());
+        done();
+      });
+    });
+  });
+
+  it("emits change of leader events on non leaders", function(done) {
+    var leader1 = etcdLeader(this.etcd, "/testleaderchange", "node1", 1).start();
+    var leader2 = etcdLeader(this.etcd, "/testleaderchange", "node2", 1);
+    var leader3 = etcdLeader(this.etcd, "/testleaderchange", "node3", 1);
+
+    leader1.on("elected", function() {
+      leader2.start();
+    });
+
+    leader2.on("leader", function(node) {
+      leader3.start();
+    });
+
+    var leader3LeaderCalled = false;
+    leader3.on("leader", function(node) {
+      // First call should be node1, second call should be node2.
+      if (!leader3LeaderCalled) {
+        expect(node).to.eql("node1");
+        leader3LeaderCalled = true;
+        leader1.stop();
+      } else {
+        expect(node).to.eql("node2");
+        done();
+      }
     });
   });
 });
