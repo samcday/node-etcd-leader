@@ -266,6 +266,35 @@ describe("etcd-leader", function() {
       });
     });
 
+    it("should handle weirdness checking election", function(done) {
+      var mockEtcd = {};
+      mockEtcd.create = mockEtcdCreate();
+      mockEtcd.del = sinon.stub();
+      mockEtcd.get = sinon.stub();
+
+      // First call to etcd.get is the leader check.
+      mockEtcd.get.onCall(0).callsArgWith(2, undefined, {
+        node: {
+          nodes: [
+            {
+              key: "/foo/333",
+              modifiedIndex: 333,
+            },
+            {
+              key: "/foo/444",
+              modifiedIndex: 444,
+            }
+          ]
+        }
+      });
+
+      var leader = etcdLeader(mockEtcd, "/foo", "bar", 10).start();
+      leader.on("error", function(err) {
+        expect(err.message).to.match(/find own membership/);
+        done();
+      });
+    });
+
     it("should handle losing election", function(done) {
       var mockEtcd = {};
       mockEtcd.create = mockEtcdCreate();
@@ -327,6 +356,64 @@ describe("etcd-leader", function() {
         clock.tick(5001);
       });
     });
+
+    it("should handle errors when watching preceeding member", function(done) {
+      var mockEtcd = {};
+      mockEtcd.create = mockEtcdCreate();
+      mockEtcd.del = sinon.stub();
+      mockEtcd.get = sinon.stub();
+      mockEtcd.set = sinon.stub();
+
+      mockEtcd.get.onCall(0).callsArgWith(2, undefined, {
+        node: {
+          nodes: [
+            {
+              key: "/foo/123",
+              modifiedIndex: 123,
+            }
+          ]
+        }
+      });
+      mockEtcd.get.onCall(1).callsArgWith(2, new Error("kaboom"));
+
+      var leader = etcdLeader(mockEtcd, "/foo", "bar", 10).start();
+
+      leader.on("error", function(err) {
+        expect(err.message).to.eql("kaboom");
+        done();
+      });
+    });
+
+    it("should handle errors when watching preceeding member (2)", function(done) {
+      var mockEtcd = {};
+      mockEtcd.create = mockEtcdCreate();
+      mockEtcd.del = sinon.stub();
+      mockEtcd.get = sinon.stub();
+      mockEtcd.set = sinon.stub();
+
+      mockEtcd.get.onCall(0).callsArgWith(2, undefined, {
+        node: {
+          nodes: [
+            {
+              key: "/foo/333",
+              modifiedIndex: 333,
+            },
+            {
+              key: "/foo/123",
+              modifiedIndex: 123,
+            }
+          ]
+        }
+      });
+      mockEtcd.get.onCall(1).callsArgWith(2, new Error("kaboom"));
+
+      var leader = etcdLeader(mockEtcd, "/foo", "bar", 10).start();
+
+      leader.on("error", function(err) {
+        expect(err.message).to.eql("kaboom");
+        done();
+      });
+    });
   });
 
   describe("on stop()", function() {
@@ -352,6 +439,62 @@ describe("etcd-leader", function() {
       });
     });
 
+    it("should abort leader check", function(done) {
+      var mockEtcd = {};
+      mockEtcd.del = sinon.stub();
+      mockEtcd.create = mockEtcdCreate();
+      mockEtcd.get = sinon.stub();
+
+      var mockReq = { abort: sinon.stub() };
+      mockEtcd.get.onCall(0).returns(mockReq);
+
+      var leader = etcdLeader(mockEtcd, "/foo", "bar", "123").start();
+      process.nextTick(function() {
+        sinon.assert.calledOnce(mockEtcd.create);
+        sinon.assert.notCalled(mockReq.abort);
+        leader.stop();
+        sinon.assert.calledOnce(mockReq.abort);
+        done();
+      });
+    });
+
+    it("should abort refresh req", function(done) {
+      var clock = this.setupFakeTimers();
+
+      var mockEtcd = {};
+      mockEtcd.del = sinon.stub();
+      mockEtcd.create = mockEtcdCreate();
+      mockEtcd.get = sinon.stub();
+      mockEtcd.set = sinon.stub();
+
+      mockEtcd.get.onCall(0).callsArgWith(2, undefined, {
+        node: {
+          nodes: [
+            {
+              key: "/foo/123",
+              modifiedIndex: 123,
+            }
+          ]
+        }
+      });
+
+      var mockReq = { abort: sinon.stub() };
+      mockEtcd.set.onCall(0).returns(mockReq);
+
+      var leader = etcdLeader(mockEtcd, "/foo", "bar", 1).start();
+
+      leader.on("elected", function() {
+        process.nextTick(function() {
+          sinon.assert.notCalled(mockEtcd.set);
+          clock.tick(501);
+          sinon.assert.calledOnce(mockEtcd.set);
+          leader.stop();
+          sinon.assert.calledOnce(mockReq.abort);
+          done();
+        });
+      });
+    });
+
     it("should indicate isRunning()", function() {
       var mockEtcd = {};
       mockEtcd.del = sinon.stub();
@@ -359,6 +502,23 @@ describe("etcd-leader", function() {
       var leader = etcdLeader(mockEtcd, "/foo", "bar", "123").start();
       leader.stop();
       expect(leader.isRunning()).to.be.false;
+    });
+
+    it("gracefully ignores errors deleting membership key", function(done) {
+      var mockEtcd = {};
+      mockEtcd.create = mockEtcdCreate();
+      mockEtcd.get = sinon.stub();
+      mockEtcd.del = sinon.stub();
+
+      mockEtcd.del.onCall(0).callsArgWith(1, new Error("barf!"));
+
+      var leader = etcdLeader(mockEtcd, "/foo", "bar", 1).start();
+
+      process.nextTick(function() {
+        leader.stop();
+        sinon.assert.calledOnce(mockEtcd.del);
+        done();
+      });
     });
 
     xit("should emit unelected event", function() {
