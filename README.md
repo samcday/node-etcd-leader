@@ -12,7 +12,7 @@ Leader election module built on a robust election algorithm, and extremely thoro
 
 ## Usage
 
-Expects a configured [node-etcd](https://github.com/stianeikeland/node-etcd) client to be provided. Note that this package does not depend on node-etcd. It is compatible with the `2.x` version of node-etcd.
+Expects a configured [node-etcd](https://github.com/stianeikeland/node-etcd) client to be provided. Note that this package does not depend on node-etcd. It is compatible with the `^4.0.0` version of node-etcd.
 
 ```
   var Etcd = require("node-etcd");
